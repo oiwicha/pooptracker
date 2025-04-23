@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poop Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 8px 12px;
+            cursor: pointer;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        #edit-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+        }
+        .item-remark {
+            color: #555;
+            font-style: italic;
+            margin-top: 5px;
+            word-break: break-word;
+        }
+        .item-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .delete-item, .edit-remark {
+            cursor: pointer;
+            display: none;
+        }
+        .delete-item {
+            color: red;
+        }
+        .edit-remark {
+            color: #4285f4;
+        }
+        .input-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .input-container textarea {
+            padding: 8px;
+            font-family: Arial, sans-serif;
+            resize: vertical;
+            min-height: 60px;
+        }
+        .custom-time-container, .remark-edit-container {
+            display: none;
+            margin-top: 10px;
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+        }
+        .custom-time-container input, .remark-edit-container input {
+            margin-right: 10px;
+            padding: 8px;
+        }
+        .remark-input {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+        }
+        .edit-form {
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Poop Tracker</h1>
+    
+    <button id="edit-button">Edit</button>
+    
+    <div class="controls">
+        <button id="add-current-time">Add Current Time</button>
+        <button id="add-custom-time">Add Custom Time</button>
+    </div>
+    
+    <div id="current-time-container" class="custom-time-container">
+        <div class="input-container">
+            <label for="current-time-remark">Add a remark (optional):</label>
+            <textarea id="current-time-remark" class="remark-input" placeholder="Enter your remark here..."></textarea>
+        </div>
+        <button id="submit-current-time">Add Entry</button>
+        <button id="cancel-current-time" class="cancel-btn">Cancel</button>
+    </div>
+    
+    <div id="custom-time-container" class="custom-time-container">
+        <div class="input-container">
+            <label for="custom-time-input">Select date and time:</label>
+            <input type="datetime-local" id="custom-time-input">
+        </div>
+        <div class="input-container">
+            <label for="custom-time-remark">Add a remark (optional):</label>
+            <textarea id="custom-time-remark" class="remark-input" placeholder="Enter your remark here..."></textarea>
+        </div>
+        <button id="submit-custom-time">Add Entry</button>
+        <button id="cancel-custom-time" class="cancel-btn">Cancel</button>
+    </div>
+    
+    <div id="remark-edit-container" class="remark-edit-container">
+        <div class="input-container">
+            <label for="edit-remark-input">Edit remark:</label>
+            <textarea id="edit-remark-input" class="remark-input"></textarea>
+        </div>
+        <button id="save-remark">Save</button>
+        <button id="cancel-edit" class="cancel-btn">Cancel</button>
+    </div>
+    
+    <ul id="time-list"></ul>
+    
+    <script>
+        // Initialize variables
+        let timeEntries = [];
+        let editMode = false;
+        let currentEditId = null;
+        
+        // DOM elements
+        const timeList = document.getElementById('time-list');
+        const addCurrentTimeBtn = document.getElementById('add-current-time');
+        const addCustomTimeBtn = document.getElementById('add-custom-time');
+        const editButton = document.getElementById('edit-button');
+        const currentTimeContainer = document.getElementById('current-time-container');
+        const currentTimeRemark = document.getElementById('current-time-remark');
+        const submitCurrentTimeBtn = document.getElementById('submit-current-time');
+        const cancelCurrentTimeBtn = document.getElementById('cancel-current-time');
+        const customTimeContainer = document.getElementById('custom-time-container');
+        const customTimeInput = document.getElementById('custom-time-input');
+        const customTimeRemark = document.getElementById('custom-time-remark');
+        const submitCustomTimeBtn = document.getElementById('submit-custom-time');
+        const cancelCustomTimeBtn = document.getElementById('cancel-custom-time');
+        const remarkEditContainer = document.getElementById('remark-edit-container');
+        const editRemarkInput = document.getElementById('edit-remark-input');
+        const saveRemarkBtn = document.getElementById('save-remark');
+        const cancelEditBtn = document.getElementById('cancel-edit');
+        
+        // Load saved entries from localStorage
+        function loadEntries() {
+            const savedEntries = localStorage.getItem('timeEntries');
+            if (savedEntries) {
+                timeEntries = JSON.parse(savedEntries);
+                renderList();
+            }
+        }
+        
+        // Save entries to localStorage
+        function saveEntries() {
+            localStorage.setItem('timeEntries', JSON.stringify(timeEntries));
+        }
+        
+        // Add new entry to the list
+        function addEntry(timestamp, remark = '', isCustom = false) {
+            const entryNumber = timeEntries.length + 1;
+            timeEntries.unshift({
+                id: Date.now(),
+                timestamp: timestamp,
+                number: entryNumber,
+                remark: remark,
+                isCustom: isCustom
+            });
+            
+            // Renumber all entries
+            timeEntries.forEach((entry, index) => {
+                entry.number = timeEntries.length - index;
+            });
+            
+            saveEntries();
+            renderList();
+        }
+        
+        // Delete entry from the list
+        function deleteEntry(id) {
+            timeEntries = timeEntries.filter(entry => entry.id !== id);
+            // Update entry numbers after deletion
+            timeEntries.forEach((entry, index) => {
+                entry.number = timeEntries.length - index;
+            });
+            saveEntries();
+            renderList();
+        }
+        
+        // Edit remark for an entry
+        function editRemark(id, newRemark) {
+            const entry = timeEntries.find(entry => entry.id === id);
+            if (entry) {
+                entry.remark = newRemark;
+                saveEntries();
+                renderList();
+            }
+        }
+        
+        // Render the list of entries
+        function renderList() {
+            timeList.innerHTML = '';
+            timeEntries.forEach(entry => {
+                const li = document.createElement('li');
+                const formattedDate = new Date(entry.timestamp).toLocaleString();
+                const sourceText = entry.isCustom ? 'Custom entry' : 'Auto-generated';
+                
+                li.innerHTML = `
+                    <div class="item-header">
+                        <span>Poop #${entry.number}: ${formattedDate}</span>
+                        <div class="item-actions">
+                            <span class="edit-remark" data-id="${entry.id}">✎ Edit</span>
+                            <span class="delete-item" data-id="${entry.id}">✖ Delete</span>
+                        </div>
+                    </div>
+                    <div class="item-remark" id="remark-${entry.id}">
+                        ${entry.remark ? entry.remark : '<span style="color: #aaa;">(No remark)</span>'}
+                    </div>
+                `;
+                timeList.appendChild(li);
+            });
+            
+            // Add event listeners to delete buttons
+            document.querySelectorAll('.delete-item').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const id = parseInt(this.getAttribute('data-id'));
+                    deleteEntry(id);
+                });
+            });
+            
+            // Add event listeners to edit buttons
+            document.querySelectorAll('.edit-remark').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const id = parseInt(this.getAttribute('data-id'));
+                    startEditRemark(id);
+                });
+            });
+            
+            // Show/hide action buttons based on edit mode
+            toggleActionButtons();
+        }
+        
+        // Start editing a remark
+        function startEditRemark(id) {
+            currentEditId = id;
+            const entry = timeEntries.find(entry => entry.id === id);
+            if (entry) {
+                editRemarkInput.value = entry.remark;
+                remarkEditContainer.style.display = 'block';
+                // Scroll to the edit container
+                remarkEditContainer.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+        
+        // Toggle action buttons visibility
+        function toggleActionButtons() {
+            const deleteButtons = document.querySelectorAll('.delete-item');
+            const editButtons = document.querySelectorAll('.edit-remark');
+            
+            deleteButtons.forEach(btn => {
+                btn.style.display = editMode ? 'inline' : 'none';
+            });
+            
+            editButtons.forEach(btn => {
+                btn.style.display = editMode ? 'inline' : 'none';
+            });
+        }
+        
+        // Toggle edit mode
+        function toggleEditMode() {
+            editMode = !editMode;
+            editButton.textContent = editMode ? 'Done' : 'Edit';
+            toggleActionButtons();
+            
+            // Hide all input containers when exiting edit mode
+            if (!editMode) {
+                remarkEditContainer.style.display = 'none';
+            }
+        }
+        
+        // Setup date input with current time
+        function setupCurrentDateTime(inputElement) {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            
+            if (inputElement) {
+                inputElement.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            }
+            return now;
+        }
+        
+        // Event handlers
+        addCurrentTimeBtn.addEventListener('click', function() {
+            currentTimeRemark.value = '';
+            currentTimeContainer.style.display = 'block';
+        });
+        
+        submitCurrentTimeBtn.addEventListener('click', function() {
+            const now = new Date().toISOString();
+            const remark = currentTimeRemark.value.trim();
+            addEntry(now, remark);
+            currentTimeContainer.style.display = 'none';
+        });
+        
+        cancelCurrentTimeBtn.addEventListener('click', function() {
+            currentTimeContainer.style.display = 'none';
+        });
+        
+        addCustomTimeBtn.addEventListener('click', function() {
+            setupCurrentDateTime(customTimeInput);
+            customTimeRemark.value = '';
+            customTimeContainer.style.display = 'block';
+        });
+        
+        submitCustomTimeBtn.addEventListener('click', function() {
+            const customTime = customTimeInput.value;
+            if (customTime) {
+                const remark = customTimeRemark.value.trim();
+                addEntry(new Date(customTime).toISOString(), remark, true);
+                customTimeContainer.style.display = 'none';
+            }
+        });
+        
+        cancelCustomTimeBtn.addEventListener('click', function() {
+            customTimeContainer.style.display = 'none';
+        });
+        
+        saveRemarkBtn.addEventListener('click', function() {
+            if (currentEditId !== null) {
+                const newRemark = editRemarkInput.value.trim();
+                editRemark(currentEditId, newRemark);
+                remarkEditContainer.style.display = 'none';
+                currentEditId = null;
+            }
+        });
+        
+        cancelEditBtn.addEventListener('click', function() {
+            remarkEditContainer.style.display = 'none';
+            currentEditId = null;
+        });
+        
+        editButton.addEventListener('click', toggleEditMode);
+        
+        // Initialize the app
+        loadEntries();
+    </script>
+</body>
+</html>
